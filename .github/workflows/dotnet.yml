@@ -1,0 +1,59 @@
+name: .NET Core Test
+
+on:
+  push:
+    branches: ["main"]
+  pull_request:
+    branches: ["main"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Setup .NET
+        uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: 10.0
+
+      - name: Restore dependencies
+        run: dotnet restore
+
+      - name: Build
+        run: dotnet build --no-restore
+
+      - name: Run Filtered Tests
+        shell: bash
+        run: |
+          # Если это PR, берем метки. Если это push в main, запускаем всё.
+          if [ "${{ github.event_name }}" == "pull_request" ]; then
+            LABELS='${{ toJson(github.event.pull_request.labels.*.name) }}'
+          else
+            LABELS="NONE"
+          fi
+
+          FILTER=""
+
+          if [[ $LABELS == "NONE" ]]; then
+            echo "Push detected. No running tests"
+            exit 0
+          fi
+
+          if echo "$LABELS" | grep -q "BST-lab";   then FILTER+="TestCategory=BST|"; fi
+          if echo "$LABELS" | grep -q "AVL-lab";   then FILTER+="TestCategory=AVL|"; fi
+          if echo "$LABELS" | grep -q "RB-lab";    then FILTER+="TestCategory=RB|"; fi
+          if echo "$LABELS" | grep -q "SPLAY-lab"; then FILTER+="TestCategory=Splay|"; fi
+          if echo "$LABELS" | grep -q "TREAP-lab"; then FILTER+="TestCategory=Treap|"; fi
+
+          FILTER=${FILTER%|}
+
+          if [ -z "$FILTER" ]; then
+            echo "No lab labels found. Running nothing."
+            exit 0
+          else
+            echo "Running tests for filter: $FILTER"
+            dotnet test --no-build --filter "$FILTER"
+          fi
