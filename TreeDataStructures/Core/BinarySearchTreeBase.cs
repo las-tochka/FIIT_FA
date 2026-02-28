@@ -89,35 +89,40 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
     
     protected virtual void RemoveNode(TNode node)
     {
-        // просто замена
-        if (node.Left == null) {
+        if (node.Left == null)
+        {
+            var parent = node.Parent;
             Transplant(node, node.Right);
-            OnNodeRemoved(node.Parent, node.Right);
+            OnNodeRemoved(parent, node.Right);
         }
-        else if (node.Right == null) {
+        else if (node.Right == null)
+        {
+            var parent = node.Parent;
             Transplant(node, node.Left);
-            OnNodeRemoved(node.Parent, node.Left);
+            OnNodeRemoved(parent, node.Left);
         }
-        else {
-            // ищем минимум в правом поддереве
+        else
+        {
             TNode successor = node.Right;
-            while (successor.Left != null) {
+            while (successor.Left != null)
                 successor = successor.Left;
-            }
 
-            if (successor.Parent != node) {
-                // замена
+            if (successor.Parent != node)
+            {
+                var succParent = successor.Parent;
                 Transplant(successor, successor.Right);
+                OnNodeRemoved(succParent, successor.Right);
+
                 successor.Right = node.Right;
                 successor.Right!.Parent = successor;
             }
 
+            var parent = node.Parent;
             Transplant(node, successor);
             successor.Left = node.Left;
             successor.Left!.Parent = successor;
 
-            // удаление структурное
-            OnNodeRemoved(successor.Parent, successor);
+            OnNodeRemoved(parent, successor);
         }
     }
 
@@ -538,7 +543,24 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
         Count = 0;
     }
     public bool Contains(KeyValuePair<TKey, TValue> item) => ContainsKey(item.Key);
-    public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex) => throw new NotImplementedException();
+
+    public void CopyTo(KeyValuePair<TKey, TValue>[] array, int arrayIndex)
+    {
+        if (array == null)
+            throw new ArgumentNullException(nameof(array));
+
+        if (arrayIndex < 0)
+            throw new ArgumentOutOfRangeException(nameof(arrayIndex));
+
+        if (array.Length - arrayIndex < Count)
+            throw new ArgumentException("The number of elements in the source tree is greater than the available space.");
+
+        foreach (var entry in InOrder())
+        {
+            array[arrayIndex++] = new KeyValuePair<TKey, TValue>(entry.Key, entry.Value);
+        }
+    }
+
     public bool Remove(KeyValuePair<TKey, TValue> item) => Remove(item.Key);
 
         /// <summary>
