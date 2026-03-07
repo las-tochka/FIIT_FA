@@ -15,7 +15,7 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
     
     public bool IsReadOnly => false;
 
-        public ICollection<TKey> Keys
+    public ICollection<TKey> Keys
     {
         get
         {
@@ -296,13 +296,26 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
         if (node == null)
             yield break;
 
-        foreach (var entry in InOrderTraversal(node.Left))
-            yield return entry;
+        while (node.Left != null)
+            node = node.Left;
 
-        yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
+        while (node != null)
+        {
+            yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
+            if (node.Right != null)
+            {
+                node = node.Right;
 
-        foreach (var entry in InOrderTraversal(node.Right))
-            yield return entry;
+                while (node.Left != null)
+                    node = node.Left;
+            } else
+            {
+                while (node.Parent != null && node == node.Parent.Right)
+                    node = node.Parent;
+
+                node = node.Parent;
+            }
+        }
     }
     
     public IEnumerable<TreeEntry<TKey, TValue>>  PreOrder() => PreOrderTraversal(Root);
@@ -312,69 +325,203 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
         if (node == null)
             yield break;
 
-        yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
+        while (node != null)
+        {
+            yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
 
-        foreach (var entry in PreOrderTraversal(node.Left))
-            yield return entry;
+            if (node.Left != null)
+            {
+                node = node.Left;
+            } else if (node.Right != null)
+            {
+                node = node.Right;
+            } else
+            {
+                while (node.Parent != null &&
+                    (node == node.Parent.Right || node.Parent.Right == null))
+                {
+                    node = node.Parent;
+                }
 
-        foreach (var entry in PreOrderTraversal(node.Right))
-            yield return entry;
+                if (node.Parent == null)
+                    node = null;
+                else
+                    node = node.Parent.Right;
+            }
+        }
     }
 
     public IEnumerable<TreeEntry<TKey, TValue>>  PostOrder() => PostOrderTraversal(Root);
 
-    private IEnumerable<TreeEntry<TKey, TValue>> PostOrderTraversal(TNode? node)
+private IEnumerable<TreeEntry<TKey, TValue>> PostOrderTraversal(TNode? node)
+{
+    if (node == null)
+        yield break;
+    TNode? lastVisited = null;
+
+    while (node != null)
     {
-        if (node == null)
-            yield break;
-
-        foreach (var entry in PostOrderTraversal(node.Left))
-            yield return entry;
-
-        foreach (var entry in PostOrderTraversal(node.Right))
-            yield return entry;
-
-        yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
+        if (lastVisited == node.Parent)
+        {
+            if (node.Left != null)
+            {
+                lastVisited = node;
+                node = node.Left;
+                continue;
+            }
+            if (node.Right != null)
+            {
+                lastVisited = node;
+                node = node.Right;
+                continue;
+            }
+            yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
+            lastVisited = node;
+            node = node.Parent;
+        } else if (lastVisited == node.Left)
+        {
+            if (node.Right != null)
+            {
+                lastVisited = node;
+                node = node.Right;
+            } else
+            {
+                yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
+                lastVisited = node;
+                node = node.Parent;
+            }
+        } else if (lastVisited == node.Right)
+        {
+            yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
+            lastVisited = node;
+            node = node.Parent;
+        }
     }
+}
 
     public IEnumerable<TreeEntry<TKey, TValue>>  InOrderReverse() => InOrderReverseTraversal(Root);
 
     public IEnumerable<TreeEntry<TKey, TValue>> InOrderReverseTraversal(TNode? node)
     {
-        var stack = new Stack<TreeEntry<TKey, TValue>>();
+        if (node == null)
+            yield break;
+        while (node.Right != null)
+            node = node.Right;
 
-        foreach (var entry in InOrder())
-            stack.Push(entry);
+        while (node != null)
+        {
+            yield return new TreeEntry<TKey, TValue>(
+                node.Key,
+                node.Value,
+                GetDepth(node)
+            );
+            if (node.Left != null)
+            {
+                node = node.Left;
 
-        while (stack.Count > 0)
-            yield return stack.Pop();
+                while (node.Right != null)
+                    node = node.Right;
+            }
+            else
+            {
+                while (node.Parent != null && node == node.Parent.Left)
+                    node = node.Parent;
+
+                node = node.Parent;
+            }
+        }
     }
 
     public IEnumerable<TreeEntry<TKey, TValue>>  PreOrderReverse() => PreOrderReverseTraversal(Root);
 
     public IEnumerable<TreeEntry<TKey, TValue>> PreOrderReverseTraversal(TNode? node)
     {
-        var stack = new Stack<TreeEntry<TKey, TValue>>();
+        if (node == null)
+            yield break;
 
-        foreach (var entry in PreOrder())
-            stack.Push(entry);
+        TNode? lastVisited = null;
 
-        while (stack.Count > 0)
-            yield return stack.Pop();
+        while (node != null)
+        {
+            if (lastVisited == node.Parent)
+            {
+                if (node.Right != null)
+                {
+                    lastVisited = node;
+                    node = node.Right;
+                    continue;
+                }
+
+                if (node.Left != null)
+                {
+                    lastVisited = node;
+                    node = node.Left;
+                    continue;
+                }
+
+                yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
+                lastVisited = node;
+                node = node.Parent;
+            }
+
+            else if (lastVisited == node.Right)
+            {
+                if (node.Left != null)
+                {
+                    lastVisited = node;
+                    node = node.Left;
+                } else
+                {
+                    yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
+                    lastVisited = node;
+                    node = node.Parent;
+                }
+            }
+
+            else if (lastVisited == node.Left)
+            {
+                yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
+                lastVisited = node;
+                node = node.Parent;
+            }
+        }
     }
 
     public IEnumerable<TreeEntry<TKey, TValue>>  PostOrderReverse() => PostOrderReverseTraversal(Root);
 
-    public IEnumerable<TreeEntry<TKey, TValue>> PostOrderReverseTraversal(TNode? node)
+public IEnumerable<TreeEntry<TKey, TValue>> PostOrderReverseTraversal(TNode? node)
+{
+    if (node == null)
+        yield break;
+
+    while (node != null)
     {
-        var stack = new Stack<TreeEntry<TKey, TValue>>();
+        yield return new TreeEntry<TKey, TValue>(
+            node.Key,
+            node.Value,
+            GetDepth(node)
+        );
+        if (node.Right != null)
+        {
+            node = node.Right;
+        } else if (node.Left != null)
+        {
+            node = node.Left;
+        } else
+        {
+            while (node.Parent != null &&
+                  (node == node.Parent.Left || node.Parent.Left == null))
+            {
+                node = node.Parent;
+            }
 
-        foreach (var entry in PostOrder())
-            stack.Push(entry);
-
-        while (stack.Count > 0)
-            yield return stack.Pop();
+            if (node.Parent == null)
+                node = null;
+            else
+                node = node.Parent.Left;
+        }
     }
+}
     
     /// <summary>
     /// Внутренний класс-итератор. 
