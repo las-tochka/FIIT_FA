@@ -289,260 +289,55 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
         return depth;
     }
     
-    public IEnumerable<TreeEntry<TKey, TValue>>  InOrder() => InOrderTraversal(Root);
-    
-    private IEnumerable<TreeEntry<TKey, TValue>> InOrderTraversal(TNode? node)
+    public IEnumerable<TreeEntry<TKey, TValue>> InOrder()
     {
-        if (node == null)
-            yield break;
-
-        while (node.Left != null)
-            node = node.Left;
-
-        while (node != null)
-        {
-            yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
-            if (node.Right != null)
-            {
-                node = node.Right;
-
-                while (node.Left != null)
-                    node = node.Left;
-            } else
-            {
-                while (node.Parent != null && node == node.Parent.Right)
-                    node = node.Parent;
-
-                node = node.Parent;
-            }
-        }
-    }
-    
-    public IEnumerable<TreeEntry<TKey, TValue>>  PreOrder() => PreOrderTraversal(Root);
-
-    private IEnumerable<TreeEntry<TKey, TValue>> PreOrderTraversal(TNode? node)
-    {
-        if (node == null)
-            yield break;
-
-        while (node != null)
-        {
-            yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
-
-            if (node.Left != null)
-            {
-                node = node.Left;
-            } else if (node.Right != null)
-            {
-                node = node.Right;
-            } else
-            {
-                while (node.Parent != null &&
-                    (node == node.Parent.Right || node.Parent.Right == null))
-                {
-                    node = node.Parent;
-                }
-
-                if (node.Parent == null)
-                    node = null;
-                else
-                    node = node.Parent.Right;
-            }
-        }
+        return new TreeIterator(Root, TraversalStrategy.InOrder);
     }
 
-    public IEnumerable<TreeEntry<TKey, TValue>>  PostOrder() => PostOrderTraversal(Root);
-
-private IEnumerable<TreeEntry<TKey, TValue>> PostOrderTraversal(TNode? node)
-{
-    if (node == null)
-        yield break;
-    TNode? lastVisited = null;
-
-    while (node != null)
+    public IEnumerable<TreeEntry<TKey, TValue>> PreOrder()
     {
-        if (lastVisited == node.Parent)
-        {
-            if (node.Left != null)
-            {
-                lastVisited = node;
-                node = node.Left;
-                continue;
-            }
-            if (node.Right != null)
-            {
-                lastVisited = node;
-                node = node.Right;
-                continue;
-            }
-            yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
-            lastVisited = node;
-            node = node.Parent;
-        } else if (lastVisited == node.Left)
-        {
-            if (node.Right != null)
-            {
-                lastVisited = node;
-                node = node.Right;
-            } else
-            {
-                yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
-                lastVisited = node;
-                node = node.Parent;
-            }
-        } else if (lastVisited == node.Right)
-        {
-            yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
-            lastVisited = node;
-            node = node.Parent;
-        }
-    }
-}
-
-    public IEnumerable<TreeEntry<TKey, TValue>>  InOrderReverse() => InOrderReverseTraversal(Root);
-
-    public IEnumerable<TreeEntry<TKey, TValue>> InOrderReverseTraversal(TNode? node)
-    {
-        if (node == null)
-            yield break;
-        while (node.Right != null)
-            node = node.Right;
-
-        while (node != null)
-        {
-            yield return new TreeEntry<TKey, TValue>(
-                node.Key,
-                node.Value,
-                GetDepth(node)
-            );
-            if (node.Left != null)
-            {
-                node = node.Left;
-
-                while (node.Right != null)
-                    node = node.Right;
-            }
-            else
-            {
-                while (node.Parent != null && node == node.Parent.Left)
-                    node = node.Parent;
-
-                node = node.Parent;
-            }
-        }
+        return new TreeIterator(Root, TraversalStrategy.PreOrder);
     }
 
-    public IEnumerable<TreeEntry<TKey, TValue>>  PreOrderReverse() => PreOrderReverseTraversal(Root);
-
-    public IEnumerable<TreeEntry<TKey, TValue>> PreOrderReverseTraversal(TNode? node)
+    public IEnumerable<TreeEntry<TKey, TValue>> PostOrder()
     {
-        if (node == null)
-            yield break;
-
-        TNode? lastVisited = null;
-
-        while (node != null)
-        {
-            if (lastVisited == node.Parent)
-            {
-                if (node.Right != null)
-                {
-                    lastVisited = node;
-                    node = node.Right;
-                    continue;
-                }
-
-                if (node.Left != null)
-                {
-                    lastVisited = node;
-                    node = node.Left;
-                    continue;
-                }
-
-                yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
-                lastVisited = node;
-                node = node.Parent;
-            }
-
-            else if (lastVisited == node.Right)
-            {
-                if (node.Left != null)
-                {
-                    lastVisited = node;
-                    node = node.Left;
-                } else
-                {
-                    yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
-                    lastVisited = node;
-                    node = node.Parent;
-                }
-            }
-
-            else if (lastVisited == node.Left)
-            {
-                yield return new TreeEntry<TKey, TValue>(node.Key, node.Value, GetDepth(node));
-                lastVisited = node;
-                node = node.Parent;
-            }
-        }
+        return new TreeIterator(Root, TraversalStrategy.PostOrder);
     }
 
-    public IEnumerable<TreeEntry<TKey, TValue>>  PostOrderReverse() => PostOrderReverseTraversal(Root);
-
-public IEnumerable<TreeEntry<TKey, TValue>> PostOrderReverseTraversal(TNode? node)
-{
-    if (node == null)
-        yield break;
-
-    while (node != null)
+    public IEnumerable<TreeEntry<TKey, TValue>> InOrderReverse()
     {
-        yield return new TreeEntry<TKey, TValue>(
-            node.Key,
-            node.Value,
-            GetDepth(node)
-        );
-        if (node.Right != null)
-        {
-            node = node.Right;
-        } else if (node.Left != null)
-        {
-            node = node.Left;
-        } else
-        {
-            while (node.Parent != null &&
-                  (node == node.Parent.Left || node.Parent.Left == null))
-            {
-                node = node.Parent;
-            }
-
-            if (node.Parent == null)
-                node = null;
-            else
-                node = node.Parent.Left;
-        }
+        return new TreeIterator(Root, TraversalStrategy.InOrderReverse);
     }
-}
+
+    public IEnumerable<TreeEntry<TKey, TValue>> PreOrderReverse()
+    {
+        return new TreeIterator(Root, TraversalStrategy.PreOrderReverse);
+    }
+
+    public IEnumerable<TreeEntry<TKey, TValue>> PostOrderReverse()
+    {
+        return new TreeIterator(Root, TraversalStrategy.PostOrderReverse);
+    }
     
     /// <summary>
     /// Внутренний класс-итератор. 
-    /// Реализует паттерн Iterator вручную, без yield return (ban).
+    /// Реализует паттерн Iterator вручную, без yield return (ban) и без стека.
     /// </summary>
     private struct TreeIterator :
         IEnumerable<TreeEntry<TKey, TValue>>,
         IEnumerator<TreeEntry<TKey, TValue>>
     {
-        // probably add something here
         private readonly TraversalStrategy _strategy;
         private readonly TNode? _root;
-        private Stack<TNode> _stack;
-        private TNode? _currentNode;
+        private TNode? _current;
+        private TNode? _lastVisited;
 
         public TreeIterator(TNode? root, TraversalStrategy strategy)
         {
             _root = root;
             _strategy = strategy;
-            _stack = new Stack<TNode>();
-            _currentNode = root;
+            _lastVisited = null;
+            _current = GetFirst(root);
         }
         
         public IEnumerator<TreeEntry<TKey, TValue>> GetEnumerator() => this;
@@ -550,40 +345,182 @@ public IEnumerable<TreeEntry<TKey, TValue>> PostOrderReverseTraversal(TNode? nod
         
         public TreeEntry<TKey, TValue> Current =>
             new TreeEntry<TKey, TValue>(
-                _currentNode!.Key,
-                _currentNode.Value,
-                GetDepth(_currentNode)
+                _lastVisited!.Key,
+                _lastVisited.Value,
+                GetDepth(_lastVisited)
             );
+
         object IEnumerator.Current => Current;
-        
         
         public bool MoveNext()
         {
-            if (_strategy == TraversalStrategy.InOrder)
+            if (_current == null) return false;
+            
+            _lastVisited = _current;
+            _current = GetNext(_current);
+            return true;
+        }
+
+        private TNode? GetFirst(TNode? root) => _strategy switch
+        {
+            TraversalStrategy.InOrder => Leftmost(root),
+            TraversalStrategy.InOrderReverse => Rightmost(root),
+            TraversalStrategy.PreOrder => root,
+            TraversalStrategy.PreOrderReverse => GetFirstPreOrderReverse(root),
+            TraversalStrategy.PostOrder => FirstPostOrder(root),
+            TraversalStrategy.PostOrderReverse => root,
+            _ => root
+        };
+
+        private TNode? GetNext(TNode node) => _strategy switch
+        {
+            TraversalStrategy.InOrder => NextInOrder(node),
+            TraversalStrategy.InOrderReverse => NextInOrderReverse(node),
+            TraversalStrategy.PreOrder => NextPreOrder(node),
+            TraversalStrategy.PreOrderReverse => NextPreOrderReverse(node),
+            TraversalStrategy.PostOrder => NextPostOrder(node),
+            TraversalStrategy.PostOrderReverse => NextPostOrderReverse(node),
+            _ => null
+        };
+
+        private static TNode? Leftmost(TNode? node)
+        {
+            while (node?.Left != null) node = node.Left;
+            return node;
+        }
+        
+        private static TNode? Rightmost(TNode? node)
+        {
+            while (node?.Right != null) node = node.Right;
+            return node;
+        }
+
+        private static TNode? NextInOrder(TNode node)
+        {
+            if (node.Right != null) return Leftmost(node.Right);
+            
+            var current = node;
+            var parent = current.Parent;
+            while (parent != null && current == parent.Right)
             {
-                while (_currentNode != null)
-                {
-                    _stack.Push(_currentNode);
-                    _currentNode = _currentNode.Left;
-                }
-
-                if (_stack.Count == 0)
-                    return false;
-
-                var node = _stack.Pop();
-                _currentNode = node.Right;
-
-                _currentNode = node;
-                return true;
+                current = parent;
+                parent = parent.Parent;
             }
+            return parent;
+        }
 
-            throw new NotImplementedException("Strategy not implemented");
+        private static TNode? NextInOrderReverse(TNode node)
+        {
+            if (node.Left != null) return Rightmost(node.Left);
+            
+            var current = node;
+            var parent = current.Parent;
+            while (parent != null && current == parent.Left)
+            {
+                current = parent;
+                parent = parent.Parent;
+            }
+            return parent;
+        }
+
+        private static TNode? NextPreOrder(TNode node)
+        {
+            if (node.Left != null) return node.Left;
+            if (node.Right != null) return node.Right;
+            
+            var current = node;
+            var parent = current.Parent;
+            while (parent != null)
+            {
+                if (current == parent.Left && parent.Right != null)
+                    return parent.Right;
+                current = parent;
+                parent = parent.Parent;
+            }
+            return null;
+        }
+
+        private static TNode? GetFirstPreOrderReverse(TNode? root)
+        {
+            if (root == null) return null;
+            
+            var current = root;
+            while (current != null)
+            {
+                if (current.Right != null)
+                    current = current.Right;
+                else if (current.Left != null)
+                    current = current.Left;
+                else
+                    return current;
+            }
+            return null;
+        }
+
+    private static TNode? NextPreOrderReverse(TNode node)
+    {
+        var parent = node.Parent;
+        if (parent == null) return null;
+        
+        if (node == parent.Right)
+        {
+            if (parent.Left != null)
+                return GetFirstPreOrderReverse(parent.Left);
+            return parent;
+        }
+        
+        if (node == parent.Left)
+        {
+            return parent;
+        }
+        
+        return null;
+    }
+
+        private static TNode? FirstPostOrder(TNode? root)
+        {
+            var node = root;
+            while (node != null)
+            {
+                if (node.Left != null) node = node.Left;
+                else if (node.Right != null) node = node.Right;
+                else return node;
+            }
+            return null;
+        }
+        
+        private static TNode? NextPostOrder(TNode node)
+        {
+            var parent = node.Parent;
+            if (parent == null) return null;
+            
+            if (node == parent.Left && parent.Right != null)
+                return FirstPostOrder(parent.Right);
+            
+            return parent;
+        }
+        
+        private static TNode? NextPostOrderReverse(TNode node)
+        {
+            if (node.Right != null) return node.Right;
+            if (node.Left != null) return node.Left;
+            
+            var current = node;
+            var parent = current.Parent;
+            while (parent != null)
+            {
+                if (current == parent.Right && parent.Left != null)
+                    return parent.Left;
+                current = parent;
+                parent = parent.Parent;
+            }
+            return null;
         }
         
         public void Reset()
         {
-            _stack.Clear();
-            _currentNode = _root;
+            _lastVisited = null;
+            _current = GetFirst(_root);
         }
 
         
