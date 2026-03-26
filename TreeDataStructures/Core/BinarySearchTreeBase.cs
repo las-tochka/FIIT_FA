@@ -9,7 +9,7 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
     where TNode : Node<TKey, TValue, TNode>
 {
     protected TNode? Root;
-    public IComparer<TKey> Comparer { get; protected set; } = comparer ?? Comparer<TKey>.Default; // use it to compare Keys
+    public IComparer<TKey> Comparer { get; protected set; } = comparer ?? Comparer<TKey>.Default;
 
     public int Count { get; protected set; }
     
@@ -58,7 +58,7 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
         while (current != null) {
             parent = current;
             int cmp = Comparer.Compare(key, current.Key);
-            if (cmp == 0) { // уже есть
+            if (cmp == 0) {
                 current.Value = value;
                 return;
             }
@@ -536,9 +536,23 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
     public IEnumerator<KeyValuePair<TKey, TValue>> GetEnumerator()
     {
         var iterator = new TreeIterator(Root, TraversalStrategy.InOrder);
+        return new Enumerator(iterator);
+    }
 
-        foreach (var entry in iterator)
-            yield return new KeyValuePair<TKey, TValue>(entry.Key, entry.Value);
+    private class Enumerator : IEnumerator<KeyValuePair<TKey, TValue>>
+    {
+        private readonly IEnumerator<TreeEntry<TKey, TValue>> _enumerator;
+        
+        public Enumerator(IEnumerator<TreeEntry<TKey, TValue>> enumerator) 
+            => _enumerator = enumerator;
+        
+        public KeyValuePair<TKey, TValue> Current => 
+            new(_enumerator.Current.Key, _enumerator.Current.Value);
+        
+        object IEnumerator.Current => Current;
+        public bool MoveNext() => _enumerator.MoveNext();
+        public void Reset() => _enumerator.Reset();
+        public void Dispose() => _enumerator.Dispose();
     }
     
     IEnumerator IEnumerable.GetEnumerator() => GetEnumerator();
