@@ -276,17 +276,17 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
     }
     #endregion
 
-    private static int GetDepth(TNode node)
+    private static int GetHeight(TNode node)
     {
-        int depth = 0;
+        int height = 0;
 
         while (node.Parent != null)
         {
-            depth++;
+            height++;
             node = node.Parent;
         }
 
-        return depth;
+        return height;
     }
     
     public IEnumerable<TreeEntry<TKey, TValue>> InOrder()
@@ -347,7 +347,7 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
             new TreeEntry<TKey, TValue>(
                 _lastVisited!.Key,
                 _lastVisited.Value,
-                GetDepth(_lastVisited)
+                GetHeight(_lastVisited)
             );
 
         object IEnumerator.Current => Current;
