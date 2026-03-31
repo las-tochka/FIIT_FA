@@ -1,4 +1,4 @@
-﻿using System.Diagnostics.CodeAnalysis;
+using System.Diagnostics.CodeAnalysis;
 using TreeDataStructures.Implementations.BST;
 
 namespace TreeDataStructures.Implementations.Splay;

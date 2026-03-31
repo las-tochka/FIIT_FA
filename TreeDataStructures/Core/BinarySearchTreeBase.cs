@@ -1,4 +1,4 @@
-﻿using System.Collections;
+using System.Collections;
 using System.Diagnostics.CodeAnalysis;
 using TreeDataStructures.Interfaces;
 
@@ -108,9 +108,11 @@ public abstract class BinarySearchTreeBase<TKey, TValue, TNode>(IComparer<TKey>?
 
             if (successor.Parent != node)
             {
-                var succParent = successor.Parent;
+                // Важно: для корректной работы хука (например, RB balancing) мы
+                // не вызываем OnNodeRemoved на промежуточном транспланте.
+                // В противном случае балансировка может изменить ссылки под узлом,
+                // которые нам ещё понадобятся при дальнейшей сборке successor.
                 Transplant(successor, successor.Right);
-                OnNodeRemoved(succParent, successor.Right);
 
                 successor.Right = node.Right;
                 successor.Right!.Parent = successor;
