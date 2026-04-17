@@ -24,6 +24,7 @@ public class RedBlackTree<TKey, TValue> : BinarySearchTreeBase<TKey, TValue, RbN
                 {
                     parent.Color = RbColor.Black;
                     uncle.Color = RbColor.Black;
+                    grandPa.Color = RbColor.Red;
                     current = grandPa;
                     continue;
                 }
@@ -40,7 +41,7 @@ public class RedBlackTree<TKey, TValue> : BinarySearchTreeBase<TKey, TValue, RbN
                 grandPa.Color = RbColor.Red;
                 break;
             }
-            else // обратная ситуация
+            else
             {
                 var uncle = grandPa.Left;
                 if (uncle?.IsRed == true)
@@ -52,7 +53,6 @@ public class RedBlackTree<TKey, TValue> : BinarySearchTreeBase<TKey, TValue, RbN
                     continue;
                 }
                 
-                // Случай 2: X — левый ребенок (RL)
                 if (current == parent.Left)
                 {
                     RotateRight(parent);
@@ -60,7 +60,6 @@ public class RedBlackTree<TKey, TValue> : BinarySearchTreeBase<TKey, TValue, RbN
                     parent = current.Parent!;
                 }
                 
-                // Случай 3: X — правый ребенок (RR)
                 RotateLeft(grandPa);
                 parent.Color = RbColor.Black;
                 grandPa.Color = RbColor.Red;
@@ -75,104 +74,89 @@ public class RedBlackTree<TKey, TValue> : BinarySearchTreeBase<TKey, TValue, RbN
     
     protected override void OnNodeRemoved(RbNode<TKey, TValue>? parent, RbNode<TKey, TValue>? child)
     {
-        // Начинаем с child (узел, который встал на место удаленного)
-        // Если child == null, берем parent
         var node = child ?? parent;
-        
-        // Если node == null или node красный, просто красим его в черный
         if (node == null)
         {
             return;
         }
-        
-        // Если node красный, просто делаем его черным (восстанавливаем черную высоту)
+
         if (node.IsRed)
         {
             node.Color = RbColor.Black;
             return;
         }
-        
-        // Балансировка для черного узла (двойная чернота)
-        while (node != Root && node.IsBlack)
+        while (node != null && node != Root && node.IsBlack)
         {
             if (node == node.Parent?.Left)
             {
-                var sibling = node.Parent.Right;
+                var brother = node.Parent.Right;
                 
-                // Случай 1: Брат красный
-                if (sibling?.IsRed == true)
+                if (brother?.IsRed == true)
                 {
-                    sibling.Color = RbColor.Black;
+                    brother.Color = RbColor.Black;
                     node.Parent.Color = RbColor.Red;
-                    RotateLeft(node.Parent);
-                    sibling = node.Parent?.Right;
+                    if (node.Parent != null) RotateLeft(node.Parent);
+                    brother = node.Parent?.Right;
                 }
                 
-                // Случай 2: Оба ребенка брата черные
-                if ((sibling?.Left?.IsBlack ?? true) && (sibling?.Right?.IsBlack ?? true))
+                if ((brother?.Left?.IsBlack ?? true) && (brother?.Right?.IsBlack ?? true))
                 {
-                    if (sibling != null) sibling.Color = RbColor.Red;
+                    if (brother != null) brother.Color = RbColor.Red;
                     node = node.Parent;
                 }
                 else
                 {
-                    // Случай 3: Правый ребенок брата черный
-                    if (sibling?.Right?.IsBlack ?? true)
+                    if (brother?.Right?.IsBlack ?? true)
                     {
-                        if (sibling?.Left != null) sibling.Left.Color = RbColor.Black;
-                        if (sibling != null) sibling.Color = RbColor.Red;
-                        RotateRight(sibling);
-                        sibling = node.Parent?.Right;
+                        if (brother?.Left != null) brother.Left.Color = RbColor.Black;
+                        if (brother != null) brother.Color = RbColor.Red;
+                        if (brother != null) RotateRight(brother);
+                        brother = node.Parent?.Right;
                     }
                     
-                    // Случай 4: Правый ребенок брата красный
-                    if (sibling != null)
+                    if (brother != null)
                     {
-                        sibling.Color = node.Parent?.Color ?? RbColor.Black;
+                        brother.Color = node.Parent?.Color ?? RbColor.Black;
                         if (node.Parent != null) node.Parent.Color = RbColor.Black;
-                        if (sibling.Right != null) sibling.Right.Color = RbColor.Black;
-                        RotateLeft(node.Parent);
+                        if (brother.Right != null) brother.Right.Color = RbColor.Black;
+                        if (node.Parent != null) RotateLeft(node.Parent);
                     }
                     node = Root!;
                 }
             }
-            else // Зеркальные случаи (node == node.Parent.Right)
+            else
             {
-                var sibling = node.Parent?.Left;
+                var brother = node.Parent?.Left;
                 
-                // Случай 1: Брат красный
-                if (sibling?.IsRed == true)
+                if (brother?.IsRed == true)
                 {
-                    sibling.Color = RbColor.Black;
+                    brother.Color = RbColor.Black;
                     if (node.Parent != null) node.Parent.Color = RbColor.Red;
-                    RotateRight(node.Parent);
-                    sibling = node.Parent?.Left;
+                    if (node.Parent != null) RotateRight(node.Parent);
+                    brother = node.Parent?.Left;
                 }
                 
-                // Случай 2: Оба ребенка брата черные
-                if ((sibling?.Left?.IsBlack ?? true) && (sibling?.Right?.IsBlack ?? true))
+                if ((brother?.Left?.IsBlack ?? true) && (brother?.Right?.IsBlack ?? true))
                 {
-                    if (sibling != null) sibling.Color = RbColor.Red;
+                    if (brother != null) brother.Color = RbColor.Red;
                     node = node.Parent;
                 }
                 else
                 {
-                    // Случай 3: Левый ребенок брата черный
-                    if (sibling?.Left?.IsBlack ?? true)
+                    if (brother?.Left?.IsBlack ?? true)
                     {
-                        if (sibling?.Right != null) sibling.Right.Color = RbColor.Black;
-                        if (sibling != null) sibling.Color = RbColor.Red;
-                        RotateLeft(sibling);
-                        sibling = node.Parent?.Left;
+                        if (brother?.Right != null) brother.Right.Color = RbColor.Black;
+                        if (brother != null) brother.Color = RbColor.Red;
+                        if (brother != null) RotateLeft(brother);
+                        brother = node.Parent?.Left;
                     }
                     
-                    // Случай 4: Левый ребенок брата красный
-                    if (sibling != null)
+                    if (brother != null)
                     {
-                        sibling.Color = node.Parent?.Color ?? RbColor.Black;
+                        brother.Color = node.Parent?.Color ?? RbColor.Black;
                         if (node.Parent != null) node.Parent.Color = RbColor.Black;
-                        if (sibling.Left != null) sibling.Left.Color = RbColor.Black;
-                        RotateRight(node.Parent);
+                        if (brother.Left != null) brother.Left.Color = RbColor.Black;
+                        if (node.Parent != null) RotateRight(node.Parent);
                     }
                     node = Root!;
                 }

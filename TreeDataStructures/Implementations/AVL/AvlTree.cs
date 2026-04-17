@@ -30,10 +30,11 @@ public class AvlTree<TKey, TValue> : BinarySearchTreeBase<TKey, TValue, AvlNode<
         {
             UpdateHight(curNode);
             int balance = GetBalance(curNode);
-            if ((balance > 1) || (balance < -1))
+            if (balance > 1 || balance < -1)
             {
                 curNode = Rebalance(curNode);
             }
+
             curNode = curNode.Parent;
         }
     }
