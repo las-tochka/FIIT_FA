@@ -11,7 +11,25 @@ public sealed class BetterBigInteger : IBigInteger
     private uint[]? _data;
     
     public bool IsNegative => _signBit == 1;
+    private static readonly IMultiplier _simpleMultiplier = new SimpleMultiplier();
+    private static readonly IMultiplier _karatsubaMultiplier = new KaratsubaMultiplier();
+    private static int _karatsubaThreshold = 256;
+    private static int _fftThreshold = 2048;
+
+    public static int KaratsubaThreshold
+    {
+        get => _karatsubaThreshold;
+        set => _karatsubaThreshold = value > 0 ? value : 256;
+    }
     
+    public static int FftThreshold
+    {
+        get => _fftThreshold;
+        set => _fftThreshold = value > 0 ? value : 2048;
+    }
+    
+
+    private static IMultiplier _multiplier = _simpleMultiplier;
     /// От массива цифр (little endian)
     public BetterBigInteger(uint[] digits, bool isNegative = false)
     {
@@ -461,93 +479,93 @@ public sealed class BetterBigInteger : IBigInteger
             !a.IsNegative);
     }
     // Добавим хелперы для деления
-private static uint[] DivideMagnitude(ReadOnlySpan<uint> dividend, ReadOnlySpan<uint> divisor, out uint[] remainder)
-{
-    if (divisor.Length == 1)
-        return DivideByUint(dividend, divisor[0], out remainder);
-    
-    int n = divisor.Length;
-    int m = dividend.Length - n;
-    
-    uint[] quotient = new uint[m + 1];
-    remainder = dividend.ToArray();
-    
-    // Нормализация
-    uint d = (uint)((1UL << 32) / (divisor[n - 1] + 1));
-    uint[] normalizedDivisor = MultiplyByUint(divisor, d);
-    uint[] normalizedDividend = MultiplyByUint(dividend, d);
-    
-    if (normalizedDividend.Length == dividend.Length)
+    private static uint[] DivideMagnitude(ReadOnlySpan<uint> dividend, ReadOnlySpan<uint> divisor, out uint[] remainder)
     {
-        uint[] temp = new uint[normalizedDividend.Length + 1];
-        Array.Copy(normalizedDividend, temp, normalizedDividend.Length);
-        normalizedDividend = temp;
-    }
-    
-    for (int j = m; j >= 0; j--)
-    {
-        // Вычисляем приблизительное частное
-        ulong qhat = ((ulong)normalizedDividend[j + n] << 32) + normalizedDividend[j + n - 1];
-        qhat /= normalizedDivisor[n - 1];
+        if (divisor.Length == 1)
+            return DivideByUint(dividend, divisor[0], out remainder);
         
-        if (qhat > 0xFFFFFFFF)
-            qhat = 0xFFFFFFFF;
+        int n = divisor.Length;
+        int m = dividend.Length - n;
         
-        // Проверяем и корректируем
-        ulong rhat = ((ulong)normalizedDividend[j + n] << 32) + normalizedDividend[j + n - 1] - qhat * normalizedDivisor[n - 1];
+        uint[] quotient = new uint[m + 1];
+        remainder = dividend.ToArray();
         
-        while (qhat >= 0x100000000 || 
-               qhat * normalizedDivisor[n - 2] > ((rhat << 32) + normalizedDividend[j + n - 2]))
+        // Нормализация
+        uint d = (uint)((1UL << 32) / (divisor[n - 1] + 1));
+        uint[] normalizedDivisor = MultiplyByUint(divisor, d);
+        uint[] normalizedDividend = MultiplyByUint(dividend, d);
+        
+        if (normalizedDividend.Length == dividend.Length)
         {
-            qhat--;
-            rhat += normalizedDivisor[n - 1];
-            if (rhat >= 0x100000000)
-                break;
+            uint[] temp = new uint[normalizedDividend.Length + 1];
+            Array.Copy(normalizedDividend, temp, normalizedDividend.Length);
+            normalizedDividend = temp;
         }
         
-        // Умножаем и вычитаем
-        ulong borrow = 0;
-        for (int i = 0; i < n; i++)
+        for (int j = m; j >= 0; j--)
         {
-            ulong product = qhat * normalizedDivisor[i];
-            ulong diff = (ulong)normalizedDividend[j + i] - (product & 0xFFFFFFFF) - borrow;
-            normalizedDividend[j + i] = (uint)diff;
-            borrow = (product >> 32) + ((diff >> 32) & 1);
-        }
-        
-        ulong finalDiff = (ulong)normalizedDividend[j + n] - borrow;
-        normalizedDividend[j + n] = (uint)finalDiff;
-        
-        quotient[j] = (uint)qhat;
-        
-        // Если перебор, добавляем обратно
-        if (finalDiff >> 32 != 0)
-        {
-            quotient[j]--;
-            borrow = 0;
+            // Вычисляем приблизительное частное
+            ulong qhat = ((ulong)normalizedDividend[j + n] << 32) + normalizedDividend[j + n - 1];
+            qhat /= normalizedDivisor[n - 1];
+            
+            if (qhat > 0xFFFFFFFF)
+                qhat = 0xFFFFFFFF;
+            
+            // Проверяем и корректируем
+            ulong rhat = ((ulong)normalizedDividend[j + n] << 32) + normalizedDividend[j + n - 1] - qhat * normalizedDivisor[n - 1];
+            
+            while (qhat >= 0x100000000 || 
+                qhat * normalizedDivisor[n - 2] > ((rhat << 32) + normalizedDividend[j + n - 2]))
+            {
+                qhat--;
+                rhat += normalizedDivisor[n - 1];
+                if (rhat >= 0x100000000)
+                    break;
+            }
+            
+            // Умножаем и вычитаем
+            ulong borrow = 0;
             for (int i = 0; i < n; i++)
             {
-                ulong sum = (ulong)normalizedDividend[j + i] + normalizedDivisor[i] + borrow;
-                normalizedDividend[j + i] = (uint)sum;
-                borrow = sum >> 32;
+                ulong product = qhat * normalizedDivisor[i];
+                ulong diff = (ulong)normalizedDividend[j + i] - (product & 0xFFFFFFFF) - borrow;
+                normalizedDividend[j + i] = (uint)diff;
+                borrow = (product >> 32) + ((diff >> 32) & 1);
             }
-            normalizedDividend[j + n] += (uint)borrow;
+            
+            ulong finalDiff = (ulong)normalizedDividend[j + n] - borrow;
+            normalizedDividend[j + n] = (uint)finalDiff;
+            
+            quotient[j] = (uint)qhat;
+            
+            // Если перебор, добавляем обратно
+            if (finalDiff >> 32 != 0)
+            {
+                quotient[j]--;
+                borrow = 0;
+                for (int i = 0; i < n; i++)
+                {
+                    ulong sum = (ulong)normalizedDividend[j + i] + normalizedDivisor[i] + borrow;
+                    normalizedDividend[j + i] = (uint)sum;
+                    borrow = sum >> 32;
+                }
+                normalizedDividend[j + n] += (uint)borrow;
+            }
         }
+        
+        // Нормализуем остаток
+        remainder = DivideByUint(normalizedDividend, d, out _);
+        
+        // Нормализуем частное
+        int last = quotient.Length - 1;
+        while (last > 0 && quotient[last] == 0)
+            last--;
+        
+        if (last + 1 != quotient.Length)
+            Array.Resize(ref quotient, last + 1);
+        
+        return quotient;
     }
-    
-    // Нормализуем остаток
-    remainder = DivideByUint(normalizedDividend, d, out _);
-    
-    // Нормализуем частное
-    int last = quotient.Length - 1;
-    while (last > 0 && quotient[last] == 0)
-        last--;
-    
-    if (last + 1 != quotient.Length)
-        Array.Resize(ref quotient, last + 1);
-    
-    return quotient;
-}
 
     private static uint[] DivideByUint(ReadOnlySpan<uint> dividend, uint divisor, out uint[] remainder)
     {
@@ -638,50 +656,69 @@ private static uint[] DivideMagnitude(ReadOnlySpan<uint> dividend, ReadOnlySpan<
         return new BetterBigInteger(remainder, a.IsNegative);
     }
 
-    private static uint[] MultiplyMagnitude(ReadOnlySpan<uint> a, ReadOnlySpan<uint> b)
+    internal static void SetMultiplicationThresholds(int karatsubaThreshold, int fftThreshold)
     {
-        if (a.Length < b.Length)
-            return MultiplyMagnitude(b, a);
+        _karatsubaThreshold = karatsubaThreshold;
+        _fftThreshold = fftThreshold;
+    }
+    
+    // Принудительная установка стратегии (для отладки)
+    internal static void SetMultiplicationStrategy(IMultiplier strategy)
+    {
+        _multiplier = strategy ?? throw new ArgumentNullException(nameof(strategy));
+    }
+    
+    // Сброс к автоматическому выбору
+    public static void SetAutoMultiplicationStrategy()
+    {
+        _multiplier = null!;
+    }
+    
+    // Метод для автоматического выбора стратегии
+    private static IMultiplier SelectMultiplicationStrategy(int sizeA, int sizeB)
+    {
+        int maxSize = Math.Max(sizeA, sizeB);
         
-        uint[] result = new uint[a.Length + b.Length];
+        // Если пороги не настроены или стратегия принудительно установлена
+        if (_multiplier != null)
+            return _multiplier;
         
-        for (int i = 0; i < a.Length; i++)
+        // Автоматический выбор на основе размера
+        if (maxSize >= _fftThreshold)
         {
-            ulong carry = 0;
-            for (int j = 0; j < b.Length; j++)
-            {
-                ulong product = (ulong)a[i] * b[j] + result[i + j] + carry;
-                result[i + j] = (uint)product;
-                carry = product >> 32;
-            }
-            if (carry != 0)
-            {
-                int pos = i + b.Length;
-                ulong sum = (ulong)result[pos] + carry;
-                result[pos] = (uint)sum;
-                if ((sum >> 32) != 0)
-                    result[pos + 1] += 1;
-            }
+            // Когда добавите FftMultiplier
+            // return _fftMultiplier;
+            return _karatsubaMultiplier; // Временно используем Карацубу
         }
-        
-        int last = result.Length - 1;
-        while (last > 0 && result[last] == 0)
-            last--;
-        
-        if (last + 1 != result.Length)
-            Array.Resize(ref result, last + 1);
-        
-        return result;
+        else if (maxSize >= _karatsubaThreshold)
+        {
+            return _karatsubaMultiplier;
+        }
+        else
+        {
+            return _simpleMultiplier;
+        }
+    }
+
+    public bool IsZero()
+    {
+        return isZero();
     }
 
     public static BetterBigInteger operator *(BetterBigInteger a, BetterBigInteger b)
     {
-        if (a.isZero() || b.isZero())
-            return new BetterBigInteger([0]);
+        if (a is null || b is null)
+            throw new ArgumentNullException();
         
-        uint[] product = MultiplyMagnitude(a.GetDigits(), b.GetDigits());
+        if (a.IsZero() || b.IsZero())
+            return new BetterBigInteger(new uint[] { 0 });
         
-        return new BetterBigInteger(product, a.IsNegative ^ b.IsNegative);
+        // Автоматический выбор стратегии
+        int sizeA = a.GetDigits().Length;
+        int sizeB = b.GetDigits().Length;
+        IMultiplier strategy = SelectMultiplicationStrategy(sizeA, sizeB);
+        
+        return strategy.Multiply(a, b);
     }
 
     private static (uint[] a, uint[] b) NormalizeLength(
@@ -717,74 +754,146 @@ private static uint[] DivideMagnitude(ReadOnlySpan<uint> dividend, ReadOnlySpan<
 
 public static BetterBigInteger operator &(BetterBigInteger a, BetterBigInteger b)
 {
-    // Приводим оба числа к положительному представлению
-    var absA = a.IsNegative ? ~a : a;
-    var absB = b.IsNegative ? ~b : b;
+    // Создаём константы
+    var ONE = new BetterBigInteger(new uint[] { 1 }, false);
+    var MINUS_ONE = new BetterBigInteger(new uint[] { 1 }, true);
     
-    // Получаем цифры как массивы
-    var digitsA = absA.GetDigits().ToArray();
-    var digitsB = absB.GetDigits().ToArray();
-    
-    // Создаем списки для удобства добавления
-    var listA = new List<uint>(digitsA);
-    var listB = new List<uint>(digitsB);
-    
-    // Выравниваем длину
-    while (listA.Count < listB.Count) listA.Add(0);
-    while (listB.Count < listA.Count) listB.Add(0);
-    
-    // Побитовое AND
-    uint[] result = new uint[listA.Count];
-    for (int i = 0; i < listA.Count; i++)
-        result[i] = listA[i] & listB[i];
-    
-    // Удаляем ведущие нули
-    int last = result.Length - 1;
-    while (last > 0 && result[last] == 0)
-        last--;
-    
-    if (last + 1 != result.Length)
-        Array.Resize(ref result, last + 1);
-    
-    // Определяем знак результата
-    if (a.IsNegative != b.IsNegative)
+    // Оба положительные - простой случай
+    if (!a.IsNegative && !b.IsNegative)
     {
-        var temp = new BetterBigInteger(result, false);
-        return ~temp;
+        var digitsA = a.GetDigits().ToArray();
+        var digitsB = b.GetDigits().ToArray();
+        
+        int maxLen = Math.Max(digitsA.Length, digitsB.Length);
+        Array.Resize(ref digitsA, maxLen);
+        Array.Resize(ref digitsB, maxLen);
+        
+        uint[] result = new uint[maxLen];
+        for (int i = 0; i < maxLen; i++)
+            result[i] = digitsA[i] & digitsB[i];
+        
+        // Удаляем ведущие нули
+        int last = result.Length - 1;
+        while (last > 0 && result[last] == 0)
+            last--;
+        
+        if (last + 1 != result.Length)
+            Array.Resize(ref result, last + 1);
+        
+        return new BetterBigInteger(result, false);
     }
+    
+    // Для всех случаев с отрицательными числами используем единый подход через дополнительный код
+    // Определяем максимальную разрядность (в битах) для обоих чисел
+    int maxBits = Math.Max(
+        GetBitLength(a),
+        GetBitLength(b)
+    );
+    // Добавляем знаковый бит
+    maxBits += 1;
+    // Округляем до ближайшего кратного 32 для удобства
+    maxBits = ((maxBits + 31) / 32) * 32;
+    
+    // Преобразуем в дополнительный код
+    var twosCompA = ToTwosComplement(a, maxBits);
+    var twosCompB = ToTwosComplement(b, maxBits);
+    
+    // Выполняем AND
+    var resultTwosComp = BitwiseAnd(twosCompA, twosCompB, maxBits);
+    
+    // Преобразуем обратно из дополнительного кода
+    return FromTwosComplement(resultTwosComp, maxBits);
+}
+
+// Вспомогательный метод для получения битовой длины
+private static int GetBitLength(BetterBigInteger value)
+{
+    if (value.IsNegative)
+        value = -value;
+    
+    return value.GetHighestUsedBit() + 1;
+}
+
+// Преобразование в дополнительный код с фиксированной разрядностью
+private static BetterBigInteger ToTwosComplement(BetterBigInteger value, int bits)
+{
+    if (!value.IsNegative)
+    {
+        // Положительное число - просто расширяем до нужной разрядности
+        return ExtendToBits(value, bits, false);
+    }
+    
+    // Отрицательное: 2^bits - |value|
+    var absValue = -value;
+    var twoPowBits = PowerOfTwo(bits);
+    return twoPowBits - absValue;
+}
+
+// Преобразование из дополнительного кода
+private static BetterBigInteger FromTwosComplement(BetterBigInteger value, int bits)
+{
+    var maxPositive = PowerOfTwo(bits - 1);
+    
+    if (value < maxPositive)
+        return value;  // Положительное число
+    
+    // Отрицательное: value - 2^bits
+    var twoPowBits = PowerOfTwo(bits);
+    return value - twoPowBits;
+}
+
+// Расширение числа до определённого количества бит
+private static BetterBigInteger ExtendToBits(BetterBigInteger value, int bits, bool isNegative)
+{
+    int words = (bits + 31) / 32;
+    var digits = value.GetDigits().ToArray();
+    
+    if (digits.Length >= words)
+        return value;
+    
+    Array.Resize(ref digits, words);
+    
+    // Если число отрицательное, заполняем старшие разряды единицами
+    if (isNegative)
+    {
+        for (int i = digits.Length; i < words; i++)
+            digits[i] = uint.MaxValue;
+    }
+    
+    return new BetterBigInteger(digits, false);
+}
+
+// Создание числа 2^n
+private static BetterBigInteger PowerOfTwo(int bits)
+{
+    int wordIndex = bits / 32;
+    int bitOffset = bits % 32;
+    uint[] digits = new uint[wordIndex + 1];
+    digits[wordIndex] = 1U << bitOffset;
+    return new BetterBigInteger(digits, false);
+}
+
+// Побитовое AND над числами в дополнительном коде
+private static BetterBigInteger BitwiseAnd(BetterBigInteger a, BetterBigInteger b, int bits)
+{
+    int words = (bits + 31) / 32;
+    var digitsA = a.GetDigits().ToArray();
+    var digitsB = b.GetDigits().ToArray();
+    
+    // Расширяем до нужной длины
+    Array.Resize(ref digitsA, words);
+    Array.Resize(ref digitsB, words);
+    
+    uint[] result = new uint[words];
+    for (int i = 0; i < words; i++)
+        result[i] = digitsA[i] & digitsB[i];
     
     return new BetterBigInteger(result, false);
 }
 
 public static BetterBigInteger operator |(BetterBigInteger a, BetterBigInteger b)
 {
-    var absA = a.IsNegative ? ~a : a;
-    var absB = b.IsNegative ? ~b : b;
-    
-    var listA = new List<uint>(absA.GetDigits().ToArray());
-    var listB = new List<uint>(absB.GetDigits().ToArray());
-    
-    while (listA.Count < listB.Count) listA.Add(0);
-    while (listB.Count < listA.Count) listB.Add(0);
-    
-    uint[] result = new uint[listA.Count];
-    for (int i = 0; i < listA.Count; i++)
-        result[i] = listA[i] | listB[i];
-    
-    int last = result.Length - 1;
-    while (last > 0 && result[last] == 0)
-        last--;
-    
-    if (last + 1 != result.Length)
-        Array.Resize(ref result, last + 1);
-    
-    if (a.IsNegative != b.IsNegative)
-    {
-        var temp = new BetterBigInteger(result, false);
-        return ~temp;
-    }
-    
-    return new BetterBigInteger(result, false);
+    return ~(~a & ~b);
 }
 
 public static BetterBigInteger operator ^(BetterBigInteger a, BetterBigInteger b)
