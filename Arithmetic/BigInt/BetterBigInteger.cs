@@ -13,6 +13,7 @@ public sealed class BetterBigInteger : IBigInteger
     public bool IsNegative => _signBit == 1;
     private static readonly IMultiplier _simpleMultiplier = new SimpleMultiplier();
     private static readonly IMultiplier _karatsubaMultiplier = new KaratsubaMultiplier();
+    private static readonly IMultiplier _fftMultiplier = new FftMultiplier();
     private static int _karatsubaThreshold = 256;
     private static int _fftThreshold = 2048;
 
@@ -113,7 +114,6 @@ public sealed class BetterBigInteger : IBigInteger
         while (lastNonZero >= 0 && digits[lastNonZero] == 0)
             lastNonZero--;
         
-        // Если все нули
         if (lastNonZero < 0)
         {
             _smallValue = 0;
@@ -121,11 +121,7 @@ public sealed class BetterBigInteger : IBigInteger
             _signBit = 0;
             return;
         }
-        
-        // Копируем только значимые цифры
         int length = lastNonZero + 1;
-        
-        // Для одного слова используем SSO
         if (length == 1)
         {
             _smallValue = digits[0];
@@ -331,7 +327,6 @@ public sealed class BetterBigInteger : IBigInteger
 
     private static uint[] SubtractMagnitude(ReadOnlySpan<uint> a, ReadOnlySpan<uint> b)
     {
-        // Предполагаем что |a| >= |b|
         uint[] result = new uint[a.Length];
         uint borrow = 0;
         
@@ -345,7 +340,6 @@ public sealed class BetterBigInteger : IBigInteger
             borrow = (uint)((diff >> 32) & 1);
         }
         
-        // Удаляем ведущие нули
         int last = result.Length - 1;
         while (last > 0 && result[last] == 0)
             last--;
@@ -422,6 +416,8 @@ public sealed class BetterBigInteger : IBigInteger
         BetterBigInteger a,
         BetterBigInteger b)
     {
+        if (a is null) throw new ArgumentNullException(nameof(a));
+        if (b is null) throw new ArgumentNullException(nameof(b));
         if (a.IsNegative == b.IsNegative)
         {
             uint[] sum =
@@ -466,6 +462,9 @@ public sealed class BetterBigInteger : IBigInteger
         BetterBigInteger a,
         BetterBigInteger b)
     {
+        if (a is null) throw new ArgumentNullException(nameof(a));
+        if (b is null) throw new ArgumentNullException(nameof(b));
+        
         return a + (-b);
     }
 
@@ -478,7 +477,6 @@ public sealed class BetterBigInteger : IBigInteger
             a.GetDigits().ToArray(),
             !a.IsNegative);
     }
-    // Добавим хелперы для деления
     private static uint[] DivideMagnitude(ReadOnlySpan<uint> dividend, ReadOnlySpan<uint> divisor, out uint[] remainder)
     {
         if (divisor.Length == 1)
@@ -490,7 +488,6 @@ public sealed class BetterBigInteger : IBigInteger
         uint[] quotient = new uint[m + 1];
         remainder = dividend.ToArray();
         
-        // Нормализация
         uint d = (uint)((1UL << 32) / (divisor[n - 1] + 1));
         uint[] normalizedDivisor = MultiplyByUint(divisor, d);
         uint[] normalizedDividend = MultiplyByUint(dividend, d);
@@ -504,14 +501,12 @@ public sealed class BetterBigInteger : IBigInteger
         
         for (int j = m; j >= 0; j--)
         {
-            // Вычисляем приблизительное частное
             ulong qhat = ((ulong)normalizedDividend[j + n] << 32) + normalizedDividend[j + n - 1];
             qhat /= normalizedDivisor[n - 1];
             
             if (qhat > 0xFFFFFFFF)
                 qhat = 0xFFFFFFFF;
-            
-            // Проверяем и корректируем
+        
             ulong rhat = ((ulong)normalizedDividend[j + n] << 32) + normalizedDividend[j + n - 1] - qhat * normalizedDivisor[n - 1];
             
             while (qhat >= 0x100000000 || 
@@ -523,7 +518,6 @@ public sealed class BetterBigInteger : IBigInteger
                     break;
             }
             
-            // Умножаем и вычитаем
             ulong borrow = 0;
             for (int i = 0; i < n; i++)
             {
@@ -538,7 +532,6 @@ public sealed class BetterBigInteger : IBigInteger
             
             quotient[j] = (uint)qhat;
             
-            // Если перебор, добавляем обратно
             if (finalDiff >> 32 != 0)
             {
                 quotient[j]--;
@@ -553,10 +546,8 @@ public sealed class BetterBigInteger : IBigInteger
             }
         }
         
-        // Нормализуем остаток
         remainder = DivideByUint(normalizedDividend, d, out _);
         
-        // Нормализуем частное
         int last = quotient.Length - 1;
         while (last > 0 && quotient[last] == 0)
             last--;
@@ -581,7 +572,6 @@ public sealed class BetterBigInteger : IBigInteger
         
         remainder = [(uint)carry];
         
-        // Нормализуем частное
         int last = quotient.Length - 1;
         while (last > 0 && quotient[last] == 0)
             last--;
@@ -618,6 +608,9 @@ public sealed class BetterBigInteger : IBigInteger
 
     public static BetterBigInteger operator /(BetterBigInteger a, BetterBigInteger b)
     {
+        if (a is null) throw new ArgumentNullException(nameof(a));
+        if (b is null) throw new ArgumentNullException(nameof(b));
+        
         if (b.isZero())
             throw new DivideByZeroException();
         
@@ -638,6 +631,9 @@ public sealed class BetterBigInteger : IBigInteger
 
     public static BetterBigInteger operator %(BetterBigInteger a, BetterBigInteger b)
     {
+        if (a is null) throw new ArgumentNullException(nameof(a));
+        if (b is null) throw new ArgumentNullException(nameof(b));
+        
         if (b.isZero())
             throw new DivideByZeroException();
         
@@ -662,33 +658,26 @@ public sealed class BetterBigInteger : IBigInteger
         _fftThreshold = fftThreshold;
     }
     
-    // Принудительная установка стратегии (для отладки)
     internal static void SetMultiplicationStrategy(IMultiplier strategy)
     {
         _multiplier = strategy ?? throw new ArgumentNullException(nameof(strategy));
     }
     
-    // Сброс к автоматическому выбору
     public static void SetAutoMultiplicationStrategy()
     {
         _multiplier = null!;
     }
     
-    // Метод для автоматического выбора стратегии
     private static IMultiplier SelectMultiplicationStrategy(int sizeA, int sizeB)
     {
         int maxSize = Math.Max(sizeA, sizeB);
         
-        // Если пороги не настроены или стратегия принудительно установлена
         if (_multiplier != null)
             return _multiplier;
         
-        // Автоматический выбор на основе размера
         if (maxSize >= _fftThreshold)
         {
-            // Когда добавите FftMultiplier
-            // return _fftMultiplier;
-            return _karatsubaMultiplier; // Временно используем Карацубу
+            return _fftMultiplier;
         }
         else if (maxSize >= _karatsubaThreshold)
         {

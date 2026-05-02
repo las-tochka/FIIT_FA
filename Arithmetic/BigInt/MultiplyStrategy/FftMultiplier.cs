@@ -1,10 +1,11 @@
 ﻿using Arithmetic.BigInt.Interfaces;
 
 namespace Arithmetic.BigInt.MultiplyStrategy;
-
+// реализация через кольца!!!
+//dotnet test Arithmetic.Tests/Arithmetic.Tests.csproj --filter "Name=Test_Multiplication_FFT" 
 internal class FftMultiplier : IMultiplier
 {
-    private const int BITWISE_THRESHOLD = 64; // Порог для использования битового умножения
+    private const int BITWISE_THRESHOLD = 64;
     
     public BetterBigInteger Multiply(BetterBigInteger a, BetterBigInteger b)
     {
@@ -17,7 +18,6 @@ internal class FftMultiplier : IMultiplier
         var digitsA = a.GetDigits();
         var digitsB = b.GetDigits();
         
-        // Для маленьких чисел используем простое умножение
         if (digitsA.Length * digitsB.Length < BITWISE_THRESHOLD)
         {
             return SimpleMultiply(a, b);
@@ -25,7 +25,6 @@ internal class FftMultiplier : IMultiplier
         
         uint[] result = BitwiseMultiply(digitsA, digitsB);
         
-        // Удаляем ведущие нули
         int lastIndex = result.Length - 1;
         while (lastIndex > 0 && result[lastIndex] == 0)
             lastIndex--;
@@ -49,7 +48,6 @@ internal class FftMultiplier : IMultiplier
     
     private uint[] BitwiseMultiply(ReadOnlySpan<uint> a, ReadOnlySpan<uint> b)
     {
-        // Определяем максимальный размер в битах
         int maxBitsA = GetBitLength(a);
         int maxBitsB = GetBitLength(b);
         int resultBits = maxBitsA + maxBitsB;
@@ -57,13 +55,10 @@ internal class FftMultiplier : IMultiplier
         
         uint[] result = new uint[resultWords];
         
-        // Битовое умножение (алгоритм "умножение через сдвиги и сложения")
         for (int i = 0; i < maxBitsA; i++)
         {
-            // Проверяем, установлен ли i-й бит в числе a
             if (GetBit(a, i))
             {
-                // Добавляем b << i к результату
                 AddShifted(result, b, i);
             }
         }
@@ -115,11 +110,9 @@ internal class FftMultiplier : IMultiplier
             ulong shiftedValue = ((ulong)value[i] << shiftOffset) | carry;
             carry = (ulong)value[i] >> (32 - shiftOffset);
             
-            // Добавляем к результату
             ulong sum = (ulong)result[resultPos] + (shiftedValue & 0xFFFFFFFF);
             result[resultPos] = (uint)sum;
             
-            // Обрабатываем перенос
             if ((sum >> 32) > 0)
             {
                 int carryPos = resultPos + 1;
@@ -132,7 +125,6 @@ internal class FftMultiplier : IMultiplier
             }
         }
         
-        // Добавляем последний перенос
         if (carry > 0)
         {
             int lastPos = value.Length + shiftWords;

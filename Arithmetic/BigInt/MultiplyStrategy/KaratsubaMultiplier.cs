@@ -1,7 +1,7 @@
 ﻿using Arithmetic.BigInt.Interfaces;
 
 namespace Arithmetic.BigInt.MultiplyStrategy;
-
+//dotnet test Arithmetic.Tests/Arithmetic.Tests.csproj --filter "Name=Test_Multiplication_Karatsuba"
 internal class KaratsubaMultiplier : IMultiplier
 {
     private const int BASE_CASE_THRESHOLD = 32;
@@ -37,7 +37,7 @@ internal class KaratsubaMultiplier : IMultiplier
         }
         
         int n = a.Length > b.Length ? a.Length : b.Length;
-        int half = n >> 1; // Деление на 2 через битовый сдвиг
+        int half = n >> 1;
         
         System.ReadOnlySpan<uint> aLow = GetLowPart(a, half);
         System.ReadOnlySpan<uint> aHigh = GetHighPart(a, half);
@@ -167,7 +167,7 @@ internal class KaratsubaMultiplier : IMultiplier
     private uint[] CombineResults(uint[] high, uint[] mid, uint[] low, int shift)
     {
         int shiftWords = shift;
-        int doubleShiftWords = shift << 1; // Умножение на 2 через битовый сдвиг
+        int doubleShiftWords = shift << 1;
         
         int highLen = high.Length + doubleShiftWords;
         int midLen = mid.Length + shiftWords;
@@ -179,11 +179,9 @@ internal class KaratsubaMultiplier : IMultiplier
         
         uint[] result = new uint[resultLen];
         
-        // Добавляем low часть
         for (int i = 0; i < low.Length; i++)
             result[i] = low[i];
         
-        // Добавляем mid часть со сдвигом
         for (int i = 0; i < mid.Length; i++)
         {
             int pos = i + shiftWords;
@@ -203,7 +201,6 @@ internal class KaratsubaMultiplier : IMultiplier
             }
         }
         
-        // Добавляем high часть со сдвигом
         for (int i = 0; i < high.Length; i++)
         {
             int pos = i + doubleShiftWords;
