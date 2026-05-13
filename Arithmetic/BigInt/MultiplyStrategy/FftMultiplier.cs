@@ -1,146 +1,153 @@
-﻿using Arithmetic.BigInt.Interfaces;
+﻿using System.Numerics;
+using Arithmetic.BigInt.Interfaces;
 
 namespace Arithmetic.BigInt.MultiplyStrategy;
-// реализация через кольца!!!
-//dotnet test Arithmetic.Tests/Arithmetic.Tests.csproj --filter "Name=Test_Multiplication_FFT" 
+
 internal class FftMultiplier : IMultiplier
 {
-    private const int BITWISE_THRESHOLD = 64;
-    
+    private const int BASE = 10000;
+    private const int BASE_DIGITS = 4;
+
     public BetterBigInteger Multiply(BetterBigInteger a, BetterBigInteger b)
     {
-        if (a is null || b is null)
-            throw new ArgumentNullException();
-        
         if (a.IsZero() || b.IsZero())
             return new BetterBigInteger(new uint[] { 0 });
-        
-        var digitsA = a.GetDigits();
-        var digitsB = b.GetDigits();
-        
-        if (digitsA.Length * digitsB.Length < BITWISE_THRESHOLD)
+
+        var aDigits = ToBase(a);
+        var bDigits = ToBase(b);
+
+        int n = 1;
+        while (n < aDigits.Length + bDigits.Length)
+            n <<= 1;
+
+        Complex[] fa = new Complex[n];
+        Complex[] fb = new Complex[n];
+
+        for (int i = 0; i < aDigits.Length; i++)
+            fa[i] = new Complex(aDigits[i], 0);
+
+        for (int i = 0; i < bDigits.Length; i++)
+            fb[i] = new Complex(bDigits[i], 0);
+
+        FFT(fa, false);
+        FFT(fb, false);
+
+        for (int i = 0; i < n; i++)
+            fa[i] *= fb[i];
+
+        FFT(fa, true);
+
+        long carry = 0;
+        List<int> resultBase = new();
+
+        for (int i = 0; i < n; i++)
         {
-            return SimpleMultiply(a, b);
+            long value = (long)Math.Round(fa[i].Real) + carry;
+
+            resultBase.Add((int)(value % BASE));
+            carry = value / BASE;
         }
-        
-        uint[] result = BitwiseMultiply(digitsA, digitsB);
-        
-        int lastIndex = result.Length - 1;
-        while (lastIndex > 0 && result[lastIndex] == 0)
-            lastIndex--;
-        
-        if (lastIndex + 1 < result.Length)
+
+        while (carry > 0)
         {
-            var trimmed = new uint[lastIndex + 1];
-            for (int i = 0; i <= lastIndex; i++)
-                trimmed[i] = result[i];
-            result = trimmed;
+            resultBase.Add((int)(carry % BASE));
+            carry /= BASE;
         }
-        
-        return new BetterBigInteger(result, a.IsNegative ^ b.IsNegative);
+
+        while (resultBase.Count > 1 && resultBase[^1] == 0)
+            resultBase.RemoveAt(resultBase.Count - 1);
+
+        return FromBase(
+            resultBase,
+            a.IsNegative ^ b.IsNegative
+        );
     }
-    
-    private BetterBigInteger SimpleMultiply(BetterBigInteger a, BetterBigInteger b)
+
+    private static void FFT(Complex[] a, bool invert)
     {
-        var simple = new SimpleMultiplier();
-        return simple.Multiply(a, b);
-    }
-    
-    private uint[] BitwiseMultiply(ReadOnlySpan<uint> a, ReadOnlySpan<uint> b)
-    {
-        int maxBitsA = GetBitLength(a);
-        int maxBitsB = GetBitLength(b);
-        int resultBits = maxBitsA + maxBitsB;
-        int resultWords = (resultBits + 31) / 32;
-        
-        uint[] result = new uint[resultWords];
-        
-        for (int i = 0; i < maxBitsA; i++)
+        int n = a.Length;
+
+        for (int i = 1, j = 0; i < n; i++)
         {
-            if (GetBit(a, i))
+            int bit = n >> 1;
+
+            while ((j & bit) != 0)
             {
-                AddShifted(result, b, i);
+                j ^= bit;
+                bit >>= 1;
             }
+
+            j ^= bit;
+
+            if (i < j)
+                (a[i], a[j]) = (a[j], a[i]);
         }
-        
-        return result;
-    }
-    
-    private int GetBitLength(ReadOnlySpan<uint> digits)
-    {
-        if (digits.Length == 0)
-            return 0;
-        
-        int lastWord = digits.Length - 1;
-        uint word = digits[lastWord];
-        
-        int bits = lastWord * 32;
-        while (word > 0)
+
+        for (int len = 2; len <= n; len <<= 1)
         {
-            bits++;
-            word >>= 1;
-        }
-        
-        return bits;
-    }
-    
-    private bool GetBit(ReadOnlySpan<uint> digits, int bitIndex)
-    {
-        int wordIndex = bitIndex / 32;
-        int bitOffset = bitIndex % 32;
-        
-        if (wordIndex >= digits.Length)
-            return false;
-        
-        return ((digits[wordIndex] >> bitOffset) & 1) != 0;
-    }
-    
-    private void AddShifted(uint[] result, ReadOnlySpan<uint> value, int shiftBits)
-    {
-        int shiftWords = shiftBits / 32;
-        int shiftOffset = shiftBits % 32;
-        
-        ulong carry = 0;
-        
-        for (int i = 0; i < value.Length; i++)
-        {
-            int resultPos = i + shiftWords;
-            
-            // Сдвигаем текущее слово
-            ulong shiftedValue = ((ulong)value[i] << shiftOffset) | carry;
-            carry = (ulong)value[i] >> (32 - shiftOffset);
-            
-            ulong sum = (ulong)result[resultPos] + (shiftedValue & 0xFFFFFFFF);
-            result[resultPos] = (uint)sum;
-            
-            if ((sum >> 32) > 0)
+            double angle = 2 * Math.PI / len * (invert ? -1 : 1);
+
+            Complex wlen = new Complex(
+                Math.Cos(angle),
+                Math.Sin(angle)
+            );
+
+            for (int i = 0; i < n; i += len)
             {
-                int carryPos = resultPos + 1;
-                while (carryPos < result.Length && (sum >> 32) > 0)
+                Complex w = Complex.One;
+
+                for (int j = 0; j < len / 2; j++)
                 {
-                    sum = (ulong)result[carryPos] + (sum >> 32);
-                    result[carryPos] = (uint)sum;
-                    carryPos++;
+                    Complex u = a[i + j];
+                    Complex v = a[i + j + len / 2] * w;
+
+                    a[i + j] = u + v;
+                    a[i + j + len / 2] = u - v;
+
+                    w *= wlen;
                 }
             }
         }
-        
-        if (carry > 0)
+
+        if (invert)
         {
-            int lastPos = value.Length + shiftWords;
-            if (lastPos < result.Length)
-            {
-                ulong sum = (ulong)result[lastPos] + carry;
-                result[lastPos] = (uint)sum;
-                
-                int carryPos = lastPos + 1;
-                while (carryPos < result.Length && (sum >> 32) > 0)
-                {
-                    sum = (ulong)result[carryPos] + (sum >> 32);
-                    result[carryPos] = (uint)sum;
-                    carryPos++;
-                }
-            }
+            for (int i = 0; i < n; i++)
+                a[i] /= n;
         }
+    }
+
+    private static int[] ToBase(BetterBigInteger value)
+    {
+        string s = value.ToString();
+
+        if (s[0] == '-')
+            s = s[1..];
+
+        List<int> result = new();
+
+        for (int i = s.Length; i > 0; i -= BASE_DIGITS)
+        {
+            int start = Math.Max(0, i - BASE_DIGITS);
+            int len = i - start;
+
+            result.Add(int.Parse(s.Substring(start, len)));
+        }
+
+        return result.ToArray();
+    }
+
+    private static BetterBigInteger FromBase(
+        List<int> digits,
+        bool negative)
+    {
+        string result = digits[^1].ToString();
+
+        for (int i = digits.Count - 2; i >= 0; i--)
+            result += digits[i].ToString($"D{BASE_DIGITS}");
+
+        if (negative && result != "0")
+            result = "-" + result;
+
+        return BetterBigInteger.Parse(result, 10);
     }
 }
