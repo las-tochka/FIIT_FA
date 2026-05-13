@@ -3,6 +3,7 @@ using Arithmetic.BigInt.Interfaces;
 
 namespace Arithmetic.BigInt.MultiplyStrategy;
 
+//dotnet test Arithmetic.Tests/Arithmetic.Tests.csproj --filter "Name=Test_Multiplication_FFT"
 internal class FftMultiplier : IMultiplier
 {
     private const int BASE = 10000;
